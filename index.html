@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Наскільки ти в темі?</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        // Встановлюємо шрифт Inter як основний
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+
+        // Кастомні анімації для ефектів
+        
+        // Анімація трясіння для неправильної відповіді
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-10px); }
+            20%, 40%, 60%, 80% { transform: translateX(10px); }
+        }
+
+        // Анімація пульсації для правильної відповіді
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+            50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+        }
+
+        // Класи, які ми будемо додавати через JS
+        
+        .answer-btn.correct {
+            animation: pulse 0.7s ease-out;
+            // Колір з палітри Tailwind: green-500
+            background-color: #22c55e !important;
+            border-color: #16a34a !important;
+            color: white !important;
+        }
+
+        .answer-btn.wrong {
+            animation: shake 0.5s ease-in-out;
+            // Колір з палітри Tailwind: red-500
+            background-color: #ef4444 !important;
+            border-color: #dc2626 !important;
+            color: white !important;
+        }
+    </style>
+</head>
+<body class="bg-sky-50 text-slate-800 min-h-screen flex items-center justify-center p-4">
+
+    <main class="w-full max-w-lg">
+        
+        <div id="start-screen" class="bg-white p-6 sm:p-8 rounded-xl shadow-lg text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-sky-800 mb-4">Мемна Вікторина</h1>
+            <p class="text-lg text-slate-600 mb-8">Перевір, наскільки ти "в темі" українських (і не тільки) мемів. Буде весело!</p>
+            <button id="start-btn" class="w-full bg-sky-500 text-white font-bold py-3 px-6 rounded-lg text-xl hover:bg-sky-600 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-1">
+                Почати!
+            </button>
+        </div>
+
+        <div id="quiz-screen" class="hidden bg-white p-6 sm:p-8 rounded-xl shadow-lg">
+            <div class="mb-6 flex justify-between items-center text-slate-500">
+                <span id="progress-text" class="text-sm font-medium">Питання 1 з 5</span>
+                <span id="score-display" class="text-sm font-medium bg-sky-100 text-sky-700 px-3 py-1 rounded-full">Рахунок: 0</span>
+            </div>
+            
+            <h2 id="question-text" class="text-2xl font-semibold text-slate-900 mb-6 min-h-[100px]">
+                Завантаження питання...
+            </h2>
+            
+            <div id="answer-buttons" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            </div>
+        </div>
+
+        <div id="result-screen" class="hidden bg-white p-6 sm:p-8 rounded-xl shadow-lg text-center">
+            <h1 class="text-3xl sm:text-4xl font-bold text-sky-800 mb-4">Результати</h1>
+            
+            <p id="score-text" class="text-5xl font-bold text-slate-800 my-6">3/5</p>
+            
+            <p id="result-message" class="text-lg text-slate-600 mb-8">
+                Непогано, але можна і краще!
+            </p>
+            
+            <button id="restart-btn" class="w-full bg-sky-500 text-white font-bold py-3 px-6 rounded-lg text-xl hover:bg-sky-600 transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-1">
+                Спробувати ще раз
+            </button>
+        </div>
+
+    </main>
+
+    <script>
+        // --- 1. Посилання на елементи DOM ---
+        const startScreen = document.getElementById('start-screen');
+        const quizScreen = document.getElementById('quiz-screen');
+        const resultScreen = document.getElementById('result-screen');
+
+        const startButton = document.getElementById('start-btn');
+        const restartButton = document.getElementById('restart-btn');
+
+        const progressText = document.getElementById('progress-text');
+        const scoreDisplay = document.getElementById('score-display');
+        const questionText = document.getElementById('question-text');
+        const answerButtonsElement = document.getElementById('answer-buttons');
+
+        const scoreText = document.getElementById('score-text');
+        const resultMessage = document.getElementById('result-message');
+
+        const QUIZ_LENGTH = 10; // Кількість питань в одній грі
+
+        // --- 2. База питань ---
+        let questions = [ // 'let' замість 'const', щоб легше перемішувати
+            {
+                question: "Що таке 'паляниця'?",
+                answers: [
+                    { text: "Якась ягода", correct: false },
+                    { text: "Смачний хліб", correct: false },
+                    { text: "Пароль для своїх", correct: false },
+                    { text: "Все вище перелічене (і не тільки)", correct: true }
+                ]
+            },
+            {
+                question: "Хто вкрав ковбасу?",
+                answers: [
+                    { text: "Кіт", correct: false },
+                    { text: "Пес", correct: false },
+                    { text: "Віктор Андрійович", correct: true },
+                    { text: "Сусід", correct: false }
+                ]
+            },
+            {
+                question: "Коли краще садити картоплю?",
+                answers: [
+                    { text: "Коли в сусіда вже зійшла", correct: true },
+                    { text: "На повний місяць", correct: false },
+                    { text: "В травні, згідно з календарем", correct: false },
+                    { text: "Вона сама росте", correct: false }
+                ]
+            },
+            {
+                question: "Хто такий Пес Патрон?",
+                answers: [
+                    { text: "Співак", correct: false },
+                    { text: "Найвідоміший сапер України", correct: true },
+                    { text: "Новий супергерой Marvel", correct: false },
+                    { text: "Кличка мого кота", correct: false }
+                ]
+            },
+            {
+                question: "Що означає 'крінж'?",
+                answers: [
+                    { text: "Смачний напій", correct: false },
+                    { text: "Нова криптовалюта", correct: false },
+                    { text: "Іспанський сором", correct: true },
+                    { text: "Порода собаки", correct: false }
+                ]
+            },
+            {
+                question: "Яка фраза стала символом незламності?",
+                answers: [
+                    { text: "Доброго вечора, ми з України!", correct: false },
+                    { text: "Русскій воєнний корабль, іді ...!", correct: true },
+                    { text: "Тримаймо стрій", correct: false },
+                    { text: "Все буде добре", correct: false }
+                ]
+            },
+            // --- Нові мемні питання ---
+            {
+                question: "Якого кольору синій трактор?",
+                answers: [
+                    { text: "Червоного", correct: false },
+                    { text: "Зеленого", correct: false },
+                    { text: "Синього", correct: true },
+                    { text: "Він не їде", correct: false }
+                ]
+            },
+            {
+                question: "Як звати Віталіка?",
+                answers: [
+                    { text: "Боря", correct: false },
+                    { text: "Андрій", correct: false },
+                    { text: "Як скажете", correct: false },
+                    { text: "Віталік", correct: true }
+                ]
+            },
+            {
+                question: "Що буде, якщо змішати колу і ментос?",
+                answers: [
+                    { text: "Смачний напій", correct: false },
+                    { text: "БУМ!", correct: true },
+                    { text: "Нічого", correct: false },
+                    { text: "Новий вид палива", correct: false }
+                ]
+            },
+            {
+                question: "Хто такий 'чілл'?",
+                answers: [
+                    { text: "Брат 'крінжа'", correct: false },
+                    { text: "Стан душі", correct: true },
+                    { text: "Порода кота", correct: false },
+                    { text: "Холодний напій", correct: false }
+                ]
+            },
+            {
+                question: "Чому небо блакитне?",
+                answers: [
+                    { text: "Бо воно відбиває океан", correct: false },
+                    { text: "Бо йому сумно", correct: false },
+                    { text: "Через розсіювання світла", correct: false },
+                    { "text": "А чому ти питаєш?", "correct": true }
+                ]
+            },
+            // --- Ще більше дурних питань ---
+            {
+                question: "Що важче: кілограм пуху чи кілограм заліза?",
+                answers: [
+                    { text: "Залізо, звісно", correct: false },
+                    { text: "Пух, бо він об'ємніший", correct: false },
+                    { text: "Вони важать однаково", correct: true },
+                    { text: "Дивлячись де зважувати", correct: false }
+                ]
+            },
+            {
+                question: "Скільки буде 2+2*2?",
+                answers: [
+                    { text: "8", correct: false },
+                    { text: "6", correct: true },
+                    { text: "4", correct: false },
+                    { text: "Скільки скажете", correct: false }
+                ]
+            },
+            {
+                question: "Навіщо людині холодильник?",
+                answers: [
+                    { text: "Щоб ховати шкарпетки", correct: false },
+                    { text: "Щоб їжа не зіпсувалась", correct: true },
+                    { text: "Щоб охолоджувати кімнату", correct: false },
+                    { text: "Для краси", correct: false }
+                ]
+            },
+            {
+                question: "Хто живе на дні океану?",
+                answers: [
+                    { text: "Спанч Боб", correct: true },
+                    { text: "Русалонька", correct: false },
+                    { text: "Затонулий корабель", correct: false },
+                    { text: "Моя самооцінка", correct: false }
+                ]
+            },
+            {
+                question: "Якого кольору хамелеон, коли дивиться в дзеркало?",
+                answers: [
+                    { text: "Кольору дзеркала", correct: false },
+                    { text: "Стає прозорим", correct: false },
+                    { text: "Вибухає від парадоксу", correct: false },
+                    { text: "Кольору себе", correct: true }
+                ]
+            },
+            {
+                question: "Скільки життів у кота?",
+                answers: [
+                    { text: "9", correct: true },
+                    { text: "1", correct: false },
+                    { text: "Безсмертний", correct: false },
+                    { text: "Скільки захоче", correct: false }
+                ]
+            },
+            {
+                question: "Що таке 'база'?",
+                answers: [
+                    { text: "Військовий об'єкт", correct: false },
+                    { text: "Основа макіяжу", correct: false },
+                    { text: "Щось дуже круте і правильне", correct: false },
+                    { text: "Все вище перелічене", correct: true }
+                ]
+            },
+            {
+                question: "Що робить козак, коли сумує?",
+                answers: [
+                    { text: "Їсть сало", correct: false },
+                    { text: "Гострить шаблю", correct: false },
+                    { text: "Козаки не сумують", correct: true },
+                    { text: "Співає сумних пісень", correct: false }
+                ]
+            },
+            {
+                question: "Де живе 'бабай'?",
+                answers: [
+                    { text: "Під ліжком", correct: true },
+                    { text: "В шафі", correct: false },
+                    { text: "В темному кутку", correct: false },
+                    { text: "Він не існує!", correct: false }
+                ]
+            },
+            {
+                question: "Чому курка перейшла дорогу?",
+                answers: [
+                    { text: "Щоб дійти до іншого боку", correct: true },
+                    { text: "Бо її покликали", correct: false },
+                    { text: "Втікала від кухаря", correct: false },
+                    { text: "Це філософське питання", correct: false }
+                ]
+            },
+            {
+                question: "Що означає 'рофл'?",
+                answers: [
+                    { text: "Дуже голосно сміятись", correct: true },
+                    { text: "Нова страва", correct: false },
+                    { text: "Вид спорту", correct: false },
+                    { text: "Плакати від щастя", correct: false }
+                ]
+            },
+            {
+                question: "Хто такий 'сигма'?",
+                answers: [
+                    { text: "Новий покемон", correct: false },
+                    { text: "Дуже самотній вовк", correct: true },
+                    { text: "Літера грецького алфавіту", correct: false },
+                    { text: "Брат 'чілла'", correct: false }
+                ]
+            },
+            {
+                question: "Що не можна робити в п'ятницю 13-го?",
+                answers: [
+                    { text: "Дихати", correct: false },
+                    { text: "Працювати", correct: false },
+                    { text: "Панікувати", correct: true },
+                    { text: "Все можна", correct: false }
+                ]
+            }
+        ];
+
+        let currentQuestionIndex = 0;
+        let score = 0;
+
+        // --- 3. Обробники подій ---
+        startButton.addEventListener('click', startGame);
+        restartButton.addEventListener('click', restartGame);
+
+        // --- 4. Логіка гри ---
+
+        // Починає гру: ховає стартовий екран, показує екран вікторини
+        function startGame() {
+            startScreen.classList.add('hidden');
+            resultScreen.classList.add('hidden');
+            quizScreen.classList.remove('hidden');
+            
+            // Перемішуємо питання для різноманітності
+            questions.sort(() => Math.random() - 0.5);
+            
+            currentQuestionIndex = 0;
+            score = 0;
+            
+            updateScoreDisplay();
+            showQuestion();
+        }
+
+        // Перезапускає гру
+        function restartGame() {
+            // Просто викликаємо startGame, вона все скине
+            startGame();
+        }
+
+        // Показує поточне питання та варіанти відповідей
+        function showQuestion() {
+            resetState(); // Очищуємо попередні кнопки
+            
+            let question = questions[currentQuestionIndex];
+            questionText.innerText = question.question;
+            progressText.innerText = `Питання ${currentQuestionIndex + 1} з ${QUIZ_LENGTH}`;
+
+            question.answers.forEach(answer => {
+                const button = document.createElement('button');
+                button.innerText = answer.text;
+                // Базові стилі для кнопки відповіді
+                button.className = 'answer-btn w-full text-left p-4 rounded-lg border-2 border-sky-200 bg-white text-slate-700 font-medium hover:bg-sky-100 hover:border-sky-300 transition-all duration-200';
+                
+                button.dataset.correct = answer.correct; // Зберігаємо інфо про правильність
+                
+                button.addEventListener('click', selectAnswer);
+                answerButtonsElement.appendChild(button);
+            });
+        }
+
+        // Очищує поле з кнопками
+        function resetState() {
+            answerButtonsElement.innerHTML = '';
+        }
+
+        // Обробляє вибір відповіді
+        function selectAnswer(e) {
+            const selectedButton = e.target;
+            const isCorrect = selectedButton.dataset.correct === 'true';
+
+            if (isCorrect) {
+                selectedButton.classList.add('correct');
+                score++;
+                updateScoreDisplay();
+            } else {
+                selectedButton.classList.add('wrong');
+            }
+
+            // Блокуємо всі кнопки після відповіді
+            Array.from(answerButtonsElement.children).forEach(button => {
+                button.disabled = true;
+                // Також покажемо правильну відповідь, якщо обрали неправильну
+                if (button.dataset.correct === 'true' && !isCorrect) {
+                    button.classList.add('correct');
+                }
+            });
+
+            // Чекаємо трохи, щоб гравець побачив ефект, і переходимо до наступного питання
+            setTimeout(() => {
+                currentQuestionIndex++;
+                if (currentQuestionIndex < QUIZ_LENGTH) { // Змінено на QUIZ_LENGTH
+                    showQuestion();
+                } else {
+                    showResults();
+                }
+            }, 1200); // 1.2 секунди
+        }
+
+        // Оновлює текст рахунку
+        function updateScoreDisplay() {
+            scoreDisplay.innerText = `Рахунок: ${score}`;
+        }
+
+        // Показує фінальний екран з результатами
+        function showResults() {
+            quizScreen.classList.add('hidden');
+            resultScreen.classList.remove('hidden');
+
+            scoreText.innerText = `${score} / ${QUIZ_LENGTH}`; // Змінено на QUIZ_LENGTH
+
+            // Підбираємо мемне повідомлення
+            if (score === 10) {
+                resultMessage.innerText = "Ти просто машина! 10/10! Легенда! 🔥";
+            } else if (score >= 8) {
+                resultMessage.innerText = "Дуже добре! Ти точно 'в темі' і шариш за меми.";
+            } else if (score >= 5) {
+                resultMessage.innerText = "Непогано, 50/50. Але є куди рости. Спробуй ще!";
+            } else if (score >= 2) {
+                resultMessage.innerText = "Ну ти... крінж 😅. Треба частіше сидіти в інтернеті.";
+            } else {
+                resultMessage.innerText = "Ти взагалі з цієї планети? 👽 Чи ти просто спав?";
+            }
+        }
+
+    </script>
+</body>
+</html>
